@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,17 @@ export default function SurveyForm() {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [restaurantId, setRestaurantId] = useState<string>("")
+  const [error, setError] = useState<string>("")
+
+  useEffect(() => {
+    // Get restaurant_id from URL parameters
+    const urlParams = new URLSearchParams(window.location.search)
+    const branchId = urlParams.get('branch_id')
+    if (branchId) {
+      setRestaurantId(branchId)
+    }
+  }, [])
 
   const handleAnswer = (value: string) => {
     setAnswers((prev) => ({
@@ -68,14 +79,29 @@ export default function SurveyForm() {
   }
 
   const handleSubmit = async () => {
+    if (!restaurantId) {
+      setError("No se encontró el ID del restaurante")
+      return
+    }
+
     try {
-      const response = await fetch("/api/survey", {
+      console.log("Enviando respuestas:", {
+        restaurant_id: restaurantId,
+        question_1: answers[1],
+        question_2: answers[2],
+        question_3: answers[3],
+        question_4: answers[4],
+        question_5: answers[5],
+      })
+
+      const response = await fetch("http://localhost:3003/questions/survey", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
         },
         body: JSON.stringify({
-          restaurant_id: "1",
+          restaurant_id: restaurantId,
           question_1: answers[1],
           question_2: answers[2],
           question_3: answers[3],
@@ -84,11 +110,20 @@ export default function SurveyForm() {
         }),
       })
 
-      if (response.ok) {
-        setIsSubmitted(true)
+      console.log("Respuesta del servidor:", response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.text()
+        console.error("Error del servidor:", errorData)
+        setError(`Error al enviar la encuesta: ${response.status} ${errorData}`)
+        return
       }
+
+      setIsSubmitted(true)
+      setError("")
     } catch (error) {
-      console.error("Error submitting survey:", error)
+      console.error("Error al enviar la encuesta:", error)
+      setError("Error al conectar con el servidor. Por favor, intente nuevamente.")
     }
   }
 
@@ -136,6 +171,12 @@ export default function SurveyForm() {
           </CardHeader>
           <CardContent className="relative z-10">
             <div className="space-y-6 pt-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
+
               <div className="flex justify-between mb-4">
                 {questions.map((_, index) => (
                   <div
@@ -198,7 +239,7 @@ export default function SurveyForm() {
                 {currentQuestion === questions.length - 1 ? (
                   <Button
                     onClick={handleSubmit}
-                    disabled={Object.keys(answers).length !== questions.length}
+                    disabled={Object.keys(answers).length !== questions.length || !restaurantId}
                     className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-sm md:text-base px-2 py-1 md:px-4 md:py-2"
                   >
                     Enviar
@@ -220,4 +261,3 @@ export default function SurveyForm() {
     </div>
   )
 }
-
